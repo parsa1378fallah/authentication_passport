@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { FormState, LoginFormSchema, signUpFormSchema } from "./type";
 import { redirect } from "next/navigation"
-import { createSession } from "./session";
+import { createSession, updateToken } from "./session";
 const BACKEND_URL = process.env.BACKEND_URL
 export async function signUp(
     state: FormState,
@@ -88,7 +88,9 @@ export async function signIn(state: FormState, formData: FormData): Promise<Form
                 id: result.id,
                 firstName: result.firstName,
                 lastName: result.lastName
-            }
+            },
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken
         })
         redirect("/")
     }
@@ -96,6 +98,48 @@ export async function signIn(state: FormState, formData: FormData): Promise<Form
         return {
             message: response.status === 401 ? "Invalid credentials" : response.statusText
         }
+    }
+}
+
+export async function refreshToken(oldRefreshToken: string) {
+    try {
+        const response = await fetch(`${BACKEND_URL}/auth/refresh`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                refreshToken: oldRefreshToken, // ⚠️ نام فیلد مهم است
+            }),
+            // cache: "no-store",
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("Refresh token response:", errorText);
+            throw new Error("Failed to refresh token");
+        }
+
+        const data = await response.json();
+
+        if (!data.accessToken || !data.refreshToken) {
+            throw new Error("Invalid refresh token response shape");
+        }
+
+        const updateRes = await fetch("http://localhost:3000/api/auth/update", {
+            method: "POST",
+            body: JSON.stringify({
+                accessToken: data.accessToken,
+                refreshToken: data.refreshToken
+            })
+        })
+
+        if (!updateRes.ok) throw new Error("Failed to update the tokens")
+
+        return data.accessToken;
+    } catch (err) {
+        console.error("Refresh Token failed:", err);
+        return null;
     }
 }
 

@@ -9,8 +9,8 @@ export type Session = {
         firstName: string,
         lastName: string
     };
-    // accessToken : string;
-    // refreshtoken : string
+    accessToken: string;
+    refreshToken: string
 }
 const secretKey = process.env.SECRET_KEY;
 const encodedKey = new TextEncoder().encode(secretKey)
@@ -51,4 +51,21 @@ export async function getSession() {
 
 export async function deleteSession() {
     (await cookies()).delete("session")
+}
+
+
+export async function updateToken({ accessToken, refreshToken }: { accessToken: string, refreshToken: string }) {
+    const cookie = (await cookies()).get("session")?.value;
+    if (!cookie) return null;
+    const { payload } = await jwtVerify<Session>(cookie, encodedKey)
+    if (!payload) throw new Error("session not found");
+    const newPayload: Session = {
+        user: {
+            ...payload.user
+        },
+        accessToken,
+        refreshToken
+    }
+    await createSession(newPayload)
+
 }
